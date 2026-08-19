@@ -36,7 +36,8 @@ const camera = new THREE.PerspectiveCamera(
     1000
 );
 
-camera.position.set(0, 2, 8);
+camera.position.set(0, 5, 11);
+camera.lookAt(0, 1, 0); // FIX: aim the camera at the flower's center height
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 
@@ -63,7 +64,6 @@ const petalMaterial = new THREE.MeshPhysicalMaterial({
     emissiveIntensity: 0.3,
     roughness: 0.1,
     transmission: 0.6, // Glass-like transparency
-    thickness: 1.2,
     clearcoat: 1.0,
     clearcoatRoughness: 0.1,
     side: THREE.DoubleSide,
@@ -98,7 +98,26 @@ function createPetalShape() {
         bevelSize: 0.02
     };
 
-    return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+
+    // FIX #1: the shape was authored pointing "up" the local Y axis (0,0) -> (0,4).
+    // Rotate it -90deg around Z so it instead points "outward" along local X.
+    // That way, spinning the pivot group around the world Y axis actually
+    // fans the petals out around the flower instead of just spinning them
+    // in place around their own long axis.
+    geometry.rotateZ(-Math.PI / 2);
+
+    // FIX #2: after the rotation above, the petal's thin "depth" (0.05)
+    // dimension points along Z (tangentially) - which makes each petal a
+    // thin vertical fin/shard sticking straight up, not a broad flat petal.
+    // Rotating 90deg around X moves that thin dimension onto Y (vertical)
+    // instead, so the petal lies flat and wide (growth along X, width along
+    // Z) the way a real lotus petal does. rotation.z on the mesh (used in
+    // the opening animation below) then correctly tilts it from flat/open
+    // up to vertical/closed.
+    geometry.rotateX(Math.PI / 2);
+
+    return geometry;
 }
 
 const petalGeometry = createPetalShape();
@@ -109,9 +128,9 @@ const flowerGroup = new THREE.Group();
 const petals = [];
 
 const layers = [
-    { count: 6, scale: 0.6, angleOffset: 0.8 },
-    { count: 10, scale: 0.8, angleOffset: 1.1 },
-    { count: 14, scale: 1.0, angleOffset: 1.4 }
+    { count: 6, scale: 0.6, angleOffset: 0.9, yOffset: 1.4 },
+    { count: 10, scale: 0.85, angleOffset: 1.15, yOffset: 0.8 },
+    { count: 14, scale: 1.1, angleOffset: 1.35, yOffset: 0.2 }
 ];
 
 layers.forEach((layer) => {
@@ -123,7 +142,8 @@ layers.forEach((layer) => {
             petalMaterial
         );
 
-        const angle = (i / layer.count) * Math.PI * 2;
+        const angle = (i / layer.count) * Math.PI * 2
+            + Math.random() * 0.05; // slight jitter so it doesn't look too mechanical
 
         const pivotGroup = new THREE.Group();
 
@@ -133,12 +153,12 @@ layers.forEach((layer) => {
             layer.scale
         );
 
-        petalMesh.position.y = 0;
+        // Petal now points along local +X (outward) after the geometry rotate above.
+        // Start closed: standing nearly upright, wrapped around the center.
+        petalMesh.rotation.z = Math.PI / 2 - 0.15;
 
-        // Initial angle (closed position)
-        pivotGroup.rotation.y = angle;
-
-        petalMesh.rotation.x = 0.1;
+        pivotGroup.position.y = layer.yOffset;
+        pivotGroup.rotation.y = angle; // FIX: this now correctly fans petals radially
 
         pivotGroup.add(petalMesh);
         flowerGroup.add(pivotGroup);
@@ -146,7 +166,7 @@ layers.forEach((layer) => {
         // Store the petals so they can be animated later
         petals.push({
             mesh: petalMesh,
-            maxRotation: layer.angleOffset
+            openRotation: Math.PI / 2 - layer.angleOffset // target angle when fully open
         });
     }
 });
@@ -163,29 +183,33 @@ const coreMat = new THREE.MeshBasicMaterial({
 
 const core = new THREE.Mesh(coreGeo, coreMat);
 
-core.position.y = 0.3;
+core.position.y = 1.6;
 
 scene.add(core);
 
 
 // 7. Opening and rotation animation (Animation Loop)
 let progress = 0;
+const startRotation = Math.PI / 2 - 0.15;
 
 function animate() {
 
     requestAnimationFrame(animate);
 
     // Slowly rotate the entire flower
-    flowerGroup.rotation.y += 0.005;
+    flowerGroup.rotation.y += 0.003;
 
     // Gradually open the petals
     if (progress < 1) {
 
-        progress += 0.005;
+        progress += 0.004;
 
         petals.forEach(item => {
-            item.mesh.rotation.x =
-                progress * item.maxRotation;
+            // FIX: animate rotation.z (tilts the petal from upright to
+            // outward-spread), not rotation.x (which just twisted the
+            // petal around its own outward-pointing axis and did nothing visible).
+            item.mesh.rotation.z =
+                startRotation + progress * (item.openRotation - startRotation);
         });
     }
 
