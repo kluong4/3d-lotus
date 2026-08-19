@@ -95,7 +95,9 @@ function createPetalShape() {
         bevelEnabled: true,
         bevelSegments: 3,
         steps: 1,
-        bevelSize: 0.02
+        bevelSize: 0.02,
+        bevelThickness: 0.02 // FIX: without this, Three.js defaults to 6 (!),
+                              // turning the petal's thin depth into a 12-unit slab
     };
 
     const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
