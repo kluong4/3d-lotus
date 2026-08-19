@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>3D Glowing Lotus - Three.js</title>
+
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+canvas {
+    display: block;
+}
+</style>
+
+<!-- Import the Three.js 3D library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+
+<body>
+
+<script>
+// 1. Set up the scene and camera
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+    60,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+);
+
+camera.position.set(0, 2, 8);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+
+document.body.appendChild(renderer.domElement);
+
+
+// 2. Magical lighting (Ambient & Point Lights)
+const ambientLight = new THREE.AmbientLight(0xffb6c1, 0.8);
+scene.add(ambientLight);
+
+const centerLight = new THREE.PointLight(0xff69b4, 3, 20);
+centerLight.position.set(0, 1, 0);
+
+scene.add(centerLight);
+
+
+// 3. Glowing crystal petal material (Glass/Glow Material)
+const petalMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0xffb6c1,
+    emissive: 0xff1493,
+    emissiveIntensity: 0.3,
+    roughness: 0.1,
+    transmission: 0.6, // Glass-like transparency
+    thickness: 1.2,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.1,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.85
+});
+
+
+// 4. Create the petal shape (Petal Geometry)
+function createPetalShape() {
+    const shape = new THREE.Shape();
+
+    shape.moveTo(0, 0);
+
+    shape.bezierCurveTo(
+        0.8, 1,
+        1.2, 2.5,
+        0, 4
+    );
+
+    shape.bezierCurveTo(
+        -1.2, 2.5,
+        -0.8, 1,
+        0, 0
+    );
+
+    const extrudeSettings = {
+        depth: 0.05,
+        bevelEnabled: true,
+        bevelSegments: 3,
+        steps: 1,
+        bevelSize: 0.02
+    };
+
+    return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+}
+
+const petalGeometry = createPetalShape();
+const flowerGroup = new THREE.Group();
+
+
+// 5. Create layers of petals and distribute them to form the flower
+const petals = [];
+
+const layers = [
+    { count: 6, scale: 0.6, angleOffset: 0.8 },
+    { count: 10, scale: 0.8, angleOffset: 1.1 },
+    { count: 14, scale: 1.0, angleOffset: 1.4 }
+];
+
+layers.forEach((layer) => {
+
+    for (let i = 0; i < layer.count; i++) {
+
+        const petalMesh = new THREE.Mesh(
+            petalGeometry,
+            petalMaterial
+        );
+
+        const angle = (i / layer.count) * Math.PI * 2;
+
+        const pivotGroup = new THREE.Group();
+
+        petalMesh.scale.set(
+            layer.scale,
+            layer.scale,
+            layer.scale
+        );
+
+        petalMesh.position.y = 0;
+
+        // Initial angle (closed position)
+        pivotGroup.rotation.y = angle;
+
+        petalMesh.rotation.x = 0.1;
+
+        pivotGroup.add(petalMesh);
+        flowerGroup.add(pivotGroup);
+
+        // Store the petals so they can be animated later
+        petals.push({
+            mesh: petalMesh,
+            maxRotation: layer.angleOffset
+        });
+    }
+});
+
+scene.add(flowerGroup);
+
+
+// 6. Glowing flower center (Glow Core)
+const coreGeo = new THREE.SphereGeometry(0.4, 32, 32);
+
+const coreMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff
+});
+
+const core = new THREE.Mesh(coreGeo, coreMat);
+
+core.position.y = 0.3;
+
+scene.add(core);
+
+
+// 7. Opening and rotation animation (Animation Loop)
+let progress = 0;
+
+function animate() {
+
+    requestAnimationFrame(animate);
+
+    // Slowly rotate the entire flower
+    flowerGroup.rotation.y += 0.005;
+
+    // Gradually open the petals
+    if (progress < 1) {
+
+        progress += 0.005;
+
+        petals.forEach(item => {
+            item.mesh.rotation.x =
+                progress * item.maxRotation;
+        });
+    }
+
+    renderer.render(scene, camera);
+}
+
+animate();
+
+
+// Reset the size when the window is resized
+window.addEventListener('resize', () => {
+
+    camera.aspect =
+        window.innerWidth / window.innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+        window.innerWidth,
+        window.innerHeight
+    );
+});
+
+</script>
+
+</body>
+</html>
